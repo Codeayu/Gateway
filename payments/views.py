@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Payment
-from .serializers import PaymentSerializer
+from .serializer import PaymentSerializer
 
 
 @api_view(["POST"])
