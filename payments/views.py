@@ -31,42 +31,57 @@ def create_payment(request):
         payment = Payment.objects.get(transaction_id=transaction_id)
         created = False
 
-if not created:
-
-    # If already SUCCESS or FAILED → no retry allowed
-    if payment.status in [Payment.Status.SUCCESS, Payment.Status.FAILED]:
-        return Response({
-            "message": "Duplicate request - terminal state reached",
-            "transaction_id": payment.transaction_id,
-            "status": payment.status,
-            "retry_count": payment.retry_count
-        })
-
-    # If still PENDING → retry
-    if payment.retry_count < 3:
-        payment.retry_count += 1
-
+    if created:
+        # Process newly created payment
         if random.choice([True, False]):
             payment.status = Payment.Status.SUCCESS
-        elif payment.retry_count >= 3:
+        else:
             payment.status = Payment.Status.FAILED
 
         payment.save()
 
         return Response({
-            "message": "Retry attempt",
+            "message": "Payment processed",
+            "transaction_id": payment.transaction_id,
+            "status": payment.status,
+            "retry_count": payment.retry_count
+        }, status=status.HTTP_201_CREATED)
+
+    if not created:
+        # If already SUCCESS or FAILED → no retry allowed
+        if payment.status in [Payment.Status.SUCCESS, Payment.Status.FAILED]:
+            return Response({
+                "message": "Duplicate request - terminal state reached",
+                "transaction_id": payment.transaction_id,
+                "status": payment.status,
+                "retry_count": payment.retry_count
+            })
+
+        # If still PENDING → retry
+        if payment.retry_count < 3:
+            payment.retry_count += 1
+
+            if random.choice([True, False]):
+                payment.status = Payment.Status.SUCCESS
+            elif payment.retry_count >= 3:
+                payment.status = Payment.Status.FAILED
+
+            payment.save()
+
+            return Response({
+                "message": "Retry attempt",
+                "transaction_id": payment.transaction_id,
+                "status": payment.status,
+                "retry_count": payment.retry_count
+            })
+
+        # Safety fallback
+        return Response({
+            "message": "Duplicate request",
             "transaction_id": payment.transaction_id,
             "status": payment.status,
             "retry_count": payment.retry_count
         })
-
-    # Safety fallback
-    return Response({
-        "message": "Duplicate request",
-        "transaction_id": payment.transaction_id,
-        "status": payment.status,
-        "retry_count": payment.retry_count
-    })
     
 
 @api_view(["GET"])
