@@ -31,14 +31,21 @@ def create_payment(request):
         payment = Payment.objects.get(transaction_id=transaction_id)
         created = False
 
-    # If duplicate request → idempotent response
-    if not created:
-    # Allow retry only if payment is still pending
-    if payment.status == Payment.Status.PENDING and payment.retry_count < 3:
+if not created:
 
+    # If already SUCCESS or FAILED → no retry allowed
+    if payment.status in [Payment.Status.SUCCESS, Payment.Status.FAILED]:
+        return Response({
+            "message": "Duplicate request - terminal state reached",
+            "transaction_id": payment.transaction_id,
+            "status": payment.status,
+            "retry_count": payment.retry_count
+        })
+
+    # If still PENDING → retry
+    if payment.retry_count < 3:
         payment.retry_count += 1
 
-        # Simulate provider again
         if random.choice([True, False]):
             payment.status = Payment.Status.SUCCESS
         elif payment.retry_count >= 3:
@@ -53,9 +60,9 @@ def create_payment(request):
             "retry_count": payment.retry_count
         })
 
-    # Terminal state → just return existing
+    # Safety fallback
     return Response({
-        "message": "Duplicate request - returning existing record",
+        "message": "Duplicate request",
         "transaction_id": payment.transaction_id,
         "status": payment.status,
         "retry_count": payment.retry_count
